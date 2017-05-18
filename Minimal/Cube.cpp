@@ -1,4 +1,5 @@
 #include "Cube.h"
+#include "Cave.h"
 #include <iostream>
 #include <fstream>
 
@@ -96,6 +97,38 @@ void Cube::draw(GLuint shaderProgram, glm::mat4 P, glm::mat4 V)
 	glBindVertexArray(0);
 }
 
+void Cube::render(GLuint shaderProgram, glm::mat4 P, glm::mat4 V, GLuint FBO)
+{
+	// Calculate the combination of the model and view (camera inverse) matrices
+	// We need to calcullate this because modern OpenGL does not keep track of any matrix other than the viewport (D)
+	// Consequently, we need to forward the projection, view, and model matrices to the shader programs
+	// Get the location of the uniform variables "projection" and "modelview"
+	uProjection = glGetUniformLocation(shaderProgram, "projection");
+	uModel = glGetUniformLocation(shaderProgram, "model");
+	uView = glGetUniformLocation(shaderProgram, "view");
+	// Now send these values to the shader program
+	glUniformMatrix4fv(uProjection, 1, GL_FALSE, &P[0][0]);
+	glUniformMatrix4fv(uModel, 1, GL_FALSE, &V[0][0]);
+	glUniformMatrix4fv(uView, 1, GL_FALSE, &toWorld[0][0]);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture_ID);
+	glUniform1i(glGetUniformLocation(shaderProgram, "myTextureSampler"), 0);
+
+	// Now draw the cube. We simply need to bind the VAO associated with it.
+	glBindVertexArray(VAO);
+
+	// glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, uv_ID);
+	// glDisableVertexAttribArray(0);
+
+	// Tell OpenGL to draw with triangles, using 36 indices, the type of the indices, and the offset to start from
+	// glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+	glDrawArrays(GL_TRIANGLES, 0, 12 * 3);
+	// Unbind the VAO when we're done so we don't accidentally draw extra stuff or tamper with its bound buffers
+	glBindVertexArray(0);
+}
+
 void Cube::update()
 {
 	spin(1.0f);
@@ -118,7 +151,7 @@ GLuint Cube::loadCubemap() {
 	glBindTexture(GL_TEXTURE_2D, texture_ID);
 
 	// Load front
-	image = loadPPM("C:/Users/degu/Desktop/CSE190Project2/Minimal/vr_test_pattern.ppm", width, height);
+	image = loadPPM("C:/Users/degu/Desktop/CSE190Project3/Minimal/vr_test_pattern.ppm", width, height);
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
 	glGenerateMipmap(GL_TEXTURE_2D);

@@ -457,7 +457,7 @@ public:
 			_eyeProjections[eye] = ovr::toGlm(ovrPerspectiveProjection);
 			_viewScaleDesc.HmdToEyeOffset[eye] = erd.HmdToEyeOffset;
 			defaultHmdToEyeOffset[eye] = _viewScaleDesc.HmdToEyeOffset[eye].x;
-			std::cout << _viewScaleDesc.HmdToEyeOffset[eye].x << std::endl;
+			//std::cout << _viewScaleDesc.HmdToEyeOffset[eye].x << std::endl;
 
 			ovrFovPort & fov = _sceneLayer.Fov[eye] = _eyeRenderDescs[eye].Fov;
 			auto eyeSize = ovr_GetFovTextureSize(_session, eye, fov, 1.0f);
@@ -562,7 +562,7 @@ protected:
 			renderEyeOffset[1] = renderEyeOffset[0];
 		}
 		*/
-		std::cout << _viewScaleDesc.HmdToEyeOffset[0].x << " " << _viewScaleDesc.HmdToEyeOffset[1].x << std::endl;
+		//std::cout << _viewScaleDesc.HmdToEyeOffset[0].x << " " << _viewScaleDesc.HmdToEyeOffset[1].x << std::endl;
 		ovr_GetEyePoses(_session, frame, true, renderEyeOffset, eyePoses, &_sceneLayer.SensorSampleTime);
 
 		int curIndex;
@@ -585,23 +585,14 @@ protected:
 			}
 			lastEye[eye] = renderEye[eye];
 
-			///*
-			if (getViewState() == 1) {
-				currentEye(ovrEye_Left);
-				const auto& vp = _sceneLayer.Viewport[eye];
-				glViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
-				_sceneLayer.RenderPose[eye] = eyePoses[ovrEye_Left];
-				renderScene(_eyeProjections[ovrEye_Left], ovr::toGlm(renderEye[ovrEye_Left]));
-			}
-			else {
-				currentEye(eye);
-				const auto& vp = _sceneLayer.Viewport[eye];
-				glViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
-				_sceneLayer.RenderPose[eye] = eyePoses[eye];
-				if (eye == ovrEye_Left && getViewState() == 3) return;
-				if (eye == ovrEye_Right && getViewState() == 2) return;
-				renderScene(_eyeProjections[eye], ovr::toGlm(renderEye[eye]));
-			}
+			
+			currentEye(eye);
+			const auto& vp = _sceneLayer.Viewport[eye];
+			glViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
+			_sceneLayer.RenderPose[eye] = eyePoses[eye];
+			offscreenRender(_eyeProjections[eye], ovr::toGlm(renderEye[eye]), _fbo, vp, eyePoses[eye].Position);
+			renderScene(_eyeProjections[eye], ovr::toGlm(renderEye[eye]));
+			
 			//*/
 			/*
 			currentEye(eye);
@@ -627,6 +618,7 @@ protected:
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
 
+	virtual void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const ovrVector3f& eyePos) = 0;
 	virtual void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose) = 0;
 	virtual void currentEye(ovrEyeType eye) = 0;
 	virtual int getViewState() = 0;
@@ -647,7 +639,9 @@ protected:
 #include "Shader.h"
 #include "Cube.h"
 #include "Skybox.h"
+#include "Cave.h"
 struct SimScene {
+	Cave * cave;
 	Cube * cube;
 	Skybox * skybox;
 	GLint cubeShaderProgram, skyboxShaderProgram;
@@ -656,21 +650,90 @@ struct SimScene {
 	int buttonA = 0, buttonB = 0, buttonX = 0;
 	float IOD = 0.0f, cubeSize = 0.03f;
 
-#define CUBE_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project2/Minimal/shader.vert"
-#define CUBE_FRAGMENT_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project2/Minimal/shader.frag"
+#define CUBE_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/shader.vert"
+#define CUBE_FRAGMENT_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/shader.frag"
 
-#define SKYBOX_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project2/Minimal/skybox.vert"
-#define SKYBOX_FRAGMENT_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project2/Minimal/skybox.frag"
+#define SKYBOX_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/skybox.vert"
+#define SKYBOX_FRAGMENT_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/skybox.frag"
 
 public:
 	static glm::mat4 P; // P for projection
 	static glm::mat4 V; // V for view
 	int curEyeIdx;
+	GLuint lFBO, lrenderedTexture, lRBO;
+	GLuint rFBO, rrenderedTexture, rRBO;
+	GLuint bFBO, brenderedTexture, bRBO;
 
 	SimScene() {
 		cubeShaderProgram = LoadShaders(CUBE_VERTEX_SHADER_PATH, CUBE_FRAGMENT_SHADER_PATH);
 		skyboxShaderProgram = LoadShaders(SKYBOX_VERTEX_SHADER_PATH, SKYBOX_FRAGMENT_SHADER_PATH);
 
+		// left
+		glGenFramebuffers(1, &lFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, lFBO);
+
+		glGenTextures(1, &lrenderedTexture);
+		glBindTexture(GL_TEXTURE_2D, lrenderedTexture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 2048, 2048, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, lrenderedTexture, 0);
+
+		glGenRenderbuffers(1, &lRBO);
+		glBindRenderbuffer(GL_RENDERBUFFER, lRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 2048, 2048);
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, // 1. fbo target: GL_FRAMEBUFFER
+			GL_DEPTH_ATTACHMENT, // 2. attachment point
+			GL_RENDERBUFFER, // 3. rbo target: GL_RENDERBUFFER
+			lRBO); // 4. rbo ID
+
+		//right
+		glGenFramebuffers(1, &rFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, rFBO);
+
+		glGenTextures(1, &rrenderedTexture);
+		glBindTexture(GL_TEXTURE_2D, rrenderedTexture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 2048, 2048, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rrenderedTexture, 0);
+
+		glGenRenderbuffers(1, &rRBO);
+		glBindRenderbuffer(GL_RENDERBUFFER, rRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 2048, 2048);
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, // 1. fbo target: GL_FRAMEBUFFER
+			GL_DEPTH_ATTACHMENT, // 2. attachment point
+			GL_RENDERBUFFER, // 3. rbo target: GL_RENDERBUFFER
+			rRBO); // 4. rbo ID
+
+		// bottom
+		glGenFramebuffers(1, &bFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, bFBO);
+
+		glGenTextures(1, &brenderedTexture);
+		glBindTexture(GL_TEXTURE_2D, brenderedTexture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 2048, 2048, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brenderedTexture, 0);
+
+		glGenRenderbuffers(1, &bRBO);
+		glBindRenderbuffer(GL_RENDERBUFFER, bRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 2048, 2048);
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, // 1. fbo target: GL_FRAMEBUFFER
+			GL_DEPTH_ATTACHMENT, // 2. attachment point
+			GL_RENDERBUFFER, // 3. rbo target: GL_RENDERBUFFER
+			bRBO); // 4. rbo ID
+
+		cave = new Cave();
+		//cave->toWorld = glm::mat4(1.0f);
+		cave->toWorld = glm::rotate(glm::mat4(1.0f), -0.785398f, glm::vec3(0.0f, 1.0f, 0.0f));
 		skybox = new Skybox();
 		skybox->toWorld = glm::mat4(1.0f);
 		cube = new Cube();
@@ -681,20 +744,98 @@ public:
 		cube->toWorld = glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
 	}
 
+	void preRender(const glm::mat4 & projection, const glm::mat4 & modelview, GLuint _fbo, const ovrRecti & vp, const ovrVector3f& eyePos) {
+		// render scene to texture
+		//left
+		glBindFramebuffer(GL_FRAMEBUFFER, lFBO);
+		glViewport(0, 0, 2048, 2048);
+		glClearColor(1.f, 1.f, 1.f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		glUseProgram(skyboxShaderProgram);
+		vec3 pa = vec3(-2.0f, -2.0f, 2.0f);
+		vec3 pb = vec3(-2.0f, -2.0f, -2.0f);
+		vec3 pc = vec3(-2.0f, 2.0f, 2.0f);
+		float nearPlane = 1.0f, farPlane = 1000.0f;
+		vec3 eyePosition = vec3(eyePos.x, eyePos.y, eyePos.z);
+		skybox->draw(skyboxShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		//skybox->draw(skyboxShaderProgram, projection, modelview);
+		glUseProgram(cubeShaderProgram);
+		cube->draw(cubeShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		//cube->draw(cubeShaderProgram, projection, modelview);
+		
+
+		//right
+		glBindFramebuffer(GL_FRAMEBUFFER, rFBO);
+		glViewport(0, 0, 2048, 2048);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		glUseProgram(skyboxShaderProgram);
+		pa = vec3(-2.0f, -2.0f, -2.0f);
+		pb = vec3(2.0f, -2.0f, -2.0f);
+		pc = vec3(-2.0f, 2.0f, -2.0f);
+		skybox->draw(skyboxShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		
+		glUseProgram(cubeShaderProgram);
+		cube->draw(cubeShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		
+
+		//bottom
+		glBindFramebuffer(GL_FRAMEBUFFER, bFBO);
+		glViewport(0, 0, 2048, 2048);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		glUseProgram(skyboxShaderProgram);
+		pa = vec3(-2.0f, -2.0f, 2.0f);
+		pb = vec3(2.0f, -2.0f, 2.0f);
+		pc = vec3(-2.0f, -2.0f, -2.0f);
+		skybox->draw(skyboxShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		
+		glUseProgram(cubeShaderProgram);
+		cube->draw(cubeShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		
+
+		// restore fbo
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
+		glViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
+	}
+
+	glm::mat4 getProjection(glm::vec3 eyePos, glm::vec3 pa, glm::vec3 pb, glm::vec3 pc, float n, float f) {
+		vec3 vr = pb - pa;
+		vec3 vu = pc - pa;
+		vec3 vn = glm::cross(vr, vu);
+		vec3 va = pa - eyePos;
+		vec3 vb = pb - eyePos;
+		vec3 vc = pc - eyePos;
+		float d = -glm::dot(vn, va);
+		float l = glm::dot(vr, va) * n / d;
+		float r = glm::dot(vr, vb) * n / d;
+		float b = glm::dot(vu, va) * n / d;
+		float t = glm::dot(vu, vc) * n / d;
+		glm::mat4 P = glm::mat4(2 * n / (r - l), 0.0f, 0.0f, 0.0f,
+								0.0f, 2 * n / (t - b), 0.0f, 0.0f,
+								(r + l) / (r - l), (t + b) / (t - b), -(f + n) / (f - n), -1.0f,
+								0.0f, 0.0f, -2 * f*n / (f - n), 0.0f);
+		glm::mat4 M = glm::mat4(vr.x, vr.y, vr.z, 0.0f,
+								vu.x, vu.y, vu.z, 0.0f, 
+								vn.x, vn.y, vn.z, 0.0f, 
+								0.0f, 0.0f, 0.0f, 1.0f);
+		glm::mat4 T = glm::translate(glm::vec3(-eyePos.x, -eyePos.y, -eyePos.z));
+		return P*glm::transpose(M)*T;
+	}
+
 	void render(const mat4 & projection, const mat4 & modelview) {
-		// Use the shader of programID
-		if (buttonX != 0) {
-			glUseProgram(skyboxShaderProgram);
-			skybox->draw(skyboxShaderProgram, projection, modelview);
-		}
-		if (buttonX != 1) {
-			glUseProgram(cubeShaderProgram);
-			cube->draw(cubeShaderProgram, projection, modelview);
-		}
+		// render texture to cave
+		glUseProgram(cubeShaderProgram);
+		cave->draw(cubeShaderProgram, projection, modelview, lrenderedTexture, rrenderedTexture, brenderedTexture);
 	}
 
 	void currentEye(int eyeIdx) {
 		curEyeIdx = eyeIdx;
+		cave->useCubemap(curEyeIdx);
 		if (buttonX == 3) {
 			skybox->useCubemap(3);
 		}
@@ -762,6 +903,10 @@ protected:
 			}
 		}
 		simScene->update();
+	}
+
+	void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const ovrVector3f& eyePos) {
+		simScene->preRender(projection, glm::inverse(headPose), _fbo, vp, eyePos);
 	}
 
 	void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose) override {
