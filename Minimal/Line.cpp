@@ -47,6 +47,7 @@ void Line::draw(GLint shaderProgram, glm::mat4 P, glm::mat4 V) {
 void Line::update(glm::vec3 p1, glm::vec3 p2, bool p)
 {
 	pressed = p; 
+	GLfloat vertices[2][3];
 	vertices[0][0] = p1.x;
 	vertices[0][1] = p1.y;
 	vertices[0][2] = p1.z;

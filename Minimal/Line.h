@@ -31,7 +31,7 @@ public:
 	GLuint uProjection, uModel, uView;
 
 	bool pressed = false;
-	GLfloat vertices[2][3];
+	
 };
 
 // Define the coordinates and indices needed to draw the cube. Note that it is not necessary

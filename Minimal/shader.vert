@@ -13,7 +13,7 @@ out vec2 UV;
 
 void main()
 {
-    gl_Position = projection * view * model * vec4(position.x, position.y, position.z, 1.0);
+    gl_Position = projection * model * view * vec4(position.x, position.y, position.z, 1.0);
     // Normal = mat3(transpose(inverse(model * view))) * normal;
 	UV = vertexUV;
 }

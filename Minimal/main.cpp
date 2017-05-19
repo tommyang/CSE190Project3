@@ -915,27 +915,29 @@ public:
 		riftskybox->draw(skyboxShaderProgram, projection, modelview);
 		glUseProgram(cubeShaderProgram);
 		cave->draw(cubeShaderProgram, projection, modelview, lrenderedTexture, rrenderedTexture, brenderedTexture);
-		glUseProgram(lineShaderProgram);
 		/*
 		vec3 pc = glm::vec3(cave->toWorld * vec4(-2.0f, 2.0f, 2.0f, 1.0f));
 		if (curEyeIdx == 0) {
 			//linel1->update(pc, eyePos, false);
 		}
 		*/
-		linel1->draw(lineShaderProgram, projection, modelview);
-		linel2->draw(lineShaderProgram, projection, modelview);
-		linel3->draw(lineShaderProgram, projection, modelview);
-		linel4->draw(lineShaderProgram, projection, modelview);
-		linel5->draw(lineShaderProgram, projection, modelview);
-		linel6->draw(lineShaderProgram, projection, modelview);
-		linel7->draw(lineShaderProgram, projection, modelview);
-		liner1->draw(lineShaderProgram, projection, modelview);
-		liner2->draw(lineShaderProgram, projection, modelview);
-		liner3->draw(lineShaderProgram, projection, modelview);
-		liner4->draw(lineShaderProgram, projection, modelview);
-		liner5->draw(lineShaderProgram, projection, modelview);
-		liner6->draw(lineShaderProgram, projection, modelview);
-		liner7->draw(lineShaderProgram, projection, modelview);
+		if (buttonAPressed == true) {
+			glUseProgram(lineShaderProgram);
+			linel1->draw(lineShaderProgram, projection, modelview);
+			linel2->draw(lineShaderProgram, projection, modelview);
+			linel3->draw(lineShaderProgram, projection, modelview);
+			linel4->draw(lineShaderProgram, projection, modelview);
+			linel5->draw(lineShaderProgram, projection, modelview);
+			linel6->draw(lineShaderProgram, projection, modelview);
+			linel7->draw(lineShaderProgram, projection, modelview);
+			liner1->draw(lineShaderProgram, projection, modelview);
+			liner2->draw(lineShaderProgram, projection, modelview);
+			liner3->draw(lineShaderProgram, projection, modelview);
+			liner4->draw(lineShaderProgram, projection, modelview);
+			liner5->draw(lineShaderProgram, projection, modelview);
+			liner6->draw(lineShaderProgram, projection, modelview);
+			liner7->draw(lineShaderProgram, projection, modelview);
+		}
 	}
 
 	void currentEye(int eyeIdx) {
