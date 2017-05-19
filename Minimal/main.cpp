@@ -590,7 +590,8 @@ protected:
 			const auto& vp = _sceneLayer.Viewport[eye];
 			glViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
 			_sceneLayer.RenderPose[eye] = eyePoses[eye];
-			offscreenRender(_eyeProjections[eye], ovr::toGlm(renderEye[eye]), _fbo, vp, eyePoses[eye].Position);
+			glm::vec3 eyePos = glm::vec3(eyePoses[eye].Position.x, eyePoses[eye].Position.y, eyePoses[eye].Position.z);
+			offscreenRender(_eyeProjections[eye], ovr::toGlm(renderEye[eye]), _fbo, vp, eyePos);
 			renderScene(_eyeProjections[eye], ovr::toGlm(renderEye[eye]));
 			
 			//*/
@@ -618,7 +619,7 @@ protected:
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
 
-	virtual void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const ovrVector3f& eyePos) = 0;
+	virtual void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) = 0;
 	virtual void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose) = 0;
 	virtual void currentEye(ovrEyeType eye) = 0;
 	virtual int getViewState() = 0;
@@ -744,7 +745,7 @@ public:
 		cube->toWorld = glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
 	}
 
-	void preRender(const glm::mat4 & projection, const glm::mat4 & modelview, GLuint _fbo, const ovrRecti & vp, const ovrVector3f& eyePos) {
+	void preRender(const glm::mat4 & projection, const glm::mat4 & modelview, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) {
 		// render scene to texture
 		//left
 		glBindFramebuffer(GL_FRAMEBUFFER, lFBO);
@@ -757,11 +758,10 @@ public:
 		vec3 pb = vec3(-2.0f, -2.0f, -2.0f);
 		vec3 pc = vec3(-2.0f, 2.0f, 2.0f);
 		float nearPlane = 1.0f, farPlane = 1000.0f;
-		vec3 eyePosition = vec3(eyePos.x, eyePos.y, eyePos.z);
-		skybox->draw(skyboxShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		//skybox->draw(skyboxShaderProgram, projection, modelview);
 		glUseProgram(cubeShaderProgram);
-		cube->draw(cubeShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		//cube->draw(cubeShaderProgram, projection, modelview);
 		
 
@@ -774,10 +774,10 @@ public:
 		pa = vec3(-2.0f, -2.0f, -2.0f);
 		pb = vec3(2.0f, -2.0f, -2.0f);
 		pc = vec3(-2.0f, 2.0f, -2.0f);
-		skybox->draw(skyboxShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		
 		glUseProgram(cubeShaderProgram);
-		cube->draw(cubeShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		
 
 		//bottom
@@ -789,10 +789,10 @@ public:
 		pa = vec3(-2.0f, -2.0f, 2.0f);
 		pb = vec3(2.0f, -2.0f, 2.0f);
 		pc = vec3(-2.0f, -2.0f, -2.0f);
-		skybox->draw(skyboxShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		
 		glUseProgram(cubeShaderProgram);
-		cube->draw(cubeShaderProgram, getProjection(eyePosition, pa, pb, pc, nearPlane, farPlane), modelview);
+		cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		
 
 		// restore fbo
@@ -835,13 +835,8 @@ public:
 
 	void currentEye(int eyeIdx) {
 		curEyeIdx = eyeIdx;
-		cave->useCubemap(curEyeIdx);
-		if (buttonX == 3) {
-			skybox->useCubemap(3);
-		}
-		else {
-			skybox->useCubemap(curEyeIdx);
-		}
+		//cave->useCubemap(curEyeIdx);
+		skybox->useCubemap(curEyeIdx);
 	}
 
 private:
@@ -905,7 +900,7 @@ protected:
 		simScene->update();
 	}
 
-	void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const ovrVector3f& eyePos) {
+	void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) {
 		simScene->preRender(projection, glm::inverse(headPose), _fbo, vp, eyePos);
 	}
 
