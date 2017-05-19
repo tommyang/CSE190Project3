@@ -27,7 +27,6 @@ public:
 	void draw(GLuint, glm::mat4 P, glm::mat4 V);
 	void render(GLuint, glm::mat4 P, glm::mat4 V, GLuint FBO);
 	void update();
-	void spin(float);
 	GLuint loadCubemap();
 	unsigned char* loadPPM(const char* filename, int& width, int& height);
 

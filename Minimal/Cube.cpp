@@ -131,13 +131,7 @@ void Cube::render(GLuint shaderProgram, glm::mat4 P, glm::mat4 V, GLuint FBO)
 
 void Cube::update()
 {
-	spin(1.0f);
-}
-
-void Cube::spin(float deg)
-{
-	// If you haven't figured it out from the last project, this is how you fix spin's behavior
-	toWorld = toWorld * glm::rotate(glm::mat4(1.0f), 1.0f / 180.0f * glm::pi<float>(), glm::vec3(0.0f, 1.0f, 0.0f));
+	
 }
 
 // Load textures for skybox

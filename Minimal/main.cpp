@@ -546,6 +546,7 @@ protected:
 	}
 
 	ovrPosef lastEye[2], renderEye[2];
+	bool initLastEye[2] = {false, false};
 	void draw() final override {
 		ovrPosef eyePoses[2];
 		ovrVector3f renderEyeOffset[ovrEye_Count];
@@ -553,7 +554,8 @@ protected:
 		renderEyeOffset[1] = _viewScaleDesc.HmdToEyeOffset[1];
 		renderEyeOffset[0].x = std::min(std::max(defaultHmdToEyeOffset[0] - getIOD() / 2, -0.3f), 0.0f);
 		renderEyeOffset[1].x = std::min(std::max(defaultHmdToEyeOffset[1] + getIOD() / 2, 0.0f), 0.3f);
-		//if (getViewState() == 1) { renderEyeOffset[0].x = renderEyeOffset[1].x = 0.0f; }
+		//std::cout << defaultHmdToEyeOffset[0] << " " << defaultHmdToEyeOffset[1] << std::endl;
+ 		//if (getViewState() == 1) { renderEyeOffset[0].x = renderEyeOffset[1].x = 0.0f; }
 		/*
 		if (getViewState() == 1) { 
 			renderEyeOffset[0].x = (renderEyeOffset[0].x + renderEyeOffset[1].x) / 2.0f; 
@@ -573,26 +575,26 @@ protected:
 		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, curTexId, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		ovr::for_each_eye([&](ovrEyeType eye) {
+			 renderEye[eye] = eyePoses[eye];
+			 /*
+			if (!initLastEye[eye]) {
+				lastEye[eye] = eyePoses[eye];
+				initLastEye[eye] = true;
+			}
 			renderEye[eye] = lastEye[eye];
 			if (getTrackingState() == 0) {
-				renderEye[eye] = eyePoses[eye];
-			}
-			else if (getTrackingState() == 2) {
 				renderEye[eye].Position = eyePoses[eye].Position;
 			}
-			else if (getTrackingState() == 3) {
-				renderEye[eye].Orientation = eyePoses[eye].Orientation;
-			}
 			lastEye[eye] = renderEye[eye];
-
+			 */
 			
 			currentEye(eye);
 			const auto& vp = _sceneLayer.Viewport[eye];
 			glViewport(vp.Pos.x, vp.Pos.y, vp.Size.w, vp.Size.h);
 			_sceneLayer.RenderPose[eye] = eyePoses[eye];
-			glm::vec3 eyePos = glm::vec3(eyePoses[eye].Position.x, eyePoses[eye].Position.y, eyePoses[eye].Position.z);
+			glm::vec3 eyePos = glm::vec3(renderEye[eye].Position.x, renderEye[eye].Position.y, renderEye[eye].Position.z);
 			offscreenRender(_eyeProjections[eye], ovr::toGlm(renderEye[eye]), _fbo, vp, eyePos);
-			renderScene(_eyeProjections[eye], ovr::toGlm(renderEye[eye]));
+			renderScene(_eyeProjections[eye], ovr::toGlm(eyePoses[eye]));
 			
 			//*/
 			/*
@@ -618,6 +620,7 @@ protected:
 		glBlitFramebuffer(0, 0, _mirrorSize.x, _mirrorSize.y, 0, _mirrorSize.y, _mirrorSize.x, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
+	float getDefaultIOD(int idx) { return defaultHmdToEyeOffset[idx]; }
 
 	virtual void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) = 0;
 	virtual void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose) = 0;
@@ -647,8 +650,8 @@ struct SimScene {
 	Skybox * skybox;
 	GLint cubeShaderProgram, skyboxShaderProgram;
 
-	bool buttonAPressed = false, buttonBPressed = false, buttonXPressed = false;
-	int buttonA = 0, buttonB = 0, buttonX = 0;
+	bool buttonAPressed = false, buttonBPressed = false, buttonXPressed = false, rightHandTriggerPressed = false;
+	int buttonA = 0, buttonB = 0;
 	float IOD = 0.0f, cubeSize = 0.03f;
 
 #define CUBE_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/shader.vert"
@@ -738,11 +741,11 @@ public:
 		skybox = new Skybox();
 		skybox->toWorld = glm::mat4(1.0f);
 		cube = new Cube();
-		cube->toWorld = glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
+		cube->toWorld = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
 	}
 
 	void update() {
-		cube->toWorld = glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
+		cube->toWorld = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
 	}
 
 	void preRender(const glm::mat4 & projection, const glm::mat4 & modelview, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) {
@@ -754,10 +757,10 @@ public:
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
 		glUseProgram(skyboxShaderProgram);
-		vec3 pa = vec3(-2.0f, -2.0f, 2.0f);
-		vec3 pb = vec3(-2.0f, -2.0f, -2.0f);
-		vec3 pc = vec3(-2.0f, 2.0f, 2.0f);
-		float nearPlane = 1.0f, farPlane = 1000.0f;
+		vec3 pa = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, 2.0f, 1.0f));
+		vec3 pb = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, -2.0f, 1.0f));
+		vec3 pc = glm::vec3(cave->toWorld * vec4(-2.0f, 2.0f, 2.0f, 1.0f));
+		float nearPlane = 0.01f, farPlane = 1000.0f;
 		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		//skybox->draw(skyboxShaderProgram, projection, modelview);
 		glUseProgram(cubeShaderProgram);
@@ -771,9 +774,9 @@ public:
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
 		glUseProgram(skyboxShaderProgram);
-		pa = vec3(-2.0f, -2.0f, -2.0f);
-		pb = vec3(2.0f, -2.0f, -2.0f);
-		pc = vec3(-2.0f, 2.0f, -2.0f);
+		pa = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, -2.0f, 1.0f));
+		pb = glm::vec3(cave->toWorld * vec4(2.0f, -2.0f, -2.0f, 1.0f));
+		pc = glm::vec3(cave->toWorld * vec4(-2.0f, 2.0f, -2.0f, 1.0f));
 		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		
 		glUseProgram(cubeShaderProgram);
@@ -786,9 +789,9 @@ public:
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
 		glUseProgram(skyboxShaderProgram);
-		pa = vec3(-2.0f, -2.0f, 2.0f);
-		pb = vec3(2.0f, -2.0f, 2.0f);
-		pc = vec3(-2.0f, -2.0f, -2.0f);
+		pa = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, 2.0f, 1.0f));
+		pb = glm::vec3(cave->toWorld * vec4(2.0f, -2.0f, 2.0f, 1.0f));
+		pc = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, -2.0f, 1.0f));
 		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
 		
 		glUseProgram(cubeShaderProgram);
@@ -804,9 +807,9 @@ public:
 	}
 
 	glm::mat4 getProjection(glm::vec3 eyePos, glm::vec3 pa, glm::vec3 pb, glm::vec3 pc, float n, float f) {
-		vec3 vr = pb - pa;
-		vec3 vu = pc - pa;
-		vec3 vn = glm::cross(vr, vu);
+		vec3 vr = glm::normalize(pb - pa);
+		vec3 vu = glm::normalize(pc - pa);
+		vec3 vn = glm::normalize(glm::cross(vr, vu));
 		vec3 va = pa - eyePos;
 		vec3 vb = pb - eyePos;
 		vec3 vc = pc - eyePos;
@@ -815,10 +818,12 @@ public:
 		float r = glm::dot(vr, vb) * n / d;
 		float b = glm::dot(vu, va) * n / d;
 		float t = glm::dot(vu, vc) * n / d;
+
 		glm::mat4 P = glm::mat4(2 * n / (r - l), 0.0f, 0.0f, 0.0f,
 								0.0f, 2 * n / (t - b), 0.0f, 0.0f,
 								(r + l) / (r - l), (t + b) / (t - b), -(f + n) / (f - n), -1.0f,
 								0.0f, 0.0f, -2 * f*n / (f - n), 0.0f);
+		P = glm::frustum(l, r, b, t, n, f);
 		glm::mat4 M = glm::mat4(vr.x, vr.y, vr.z, 0.0f,
 								vu.x, vu.y, vu.z, 0.0f, 
 								vn.x, vn.y, vn.z, 0.0f, 
@@ -848,6 +853,10 @@ class SimApp : public RiftApp {
 
 public:
 	SimApp() {}
+	glm::mat4 lastHeadPose;
+	glm::mat4 rightHandPose;
+	glm::vec3 triggerPose;
+	glm::mat4 lastRightHand;
 protected:
 
 	void initGl() override {
@@ -872,6 +881,8 @@ protected:
 
 	void update() override {
 		ovrInputState inputState;
+		double displayMidpointSeconds = ovr_GetPredictedDisplayTime(_session, frame);
+		ovrTrackingState trackState = ovr_GetTrackingState(_session, displayMidpointSeconds, ovrTrue);
 		if (OVR_SUCCESS(ovr_GetInputState(_session, ovrControllerType_Touch, &inputState))) {
 			if (inputState.Buttons & ovrButton_A) simScene->buttonAPressed = true;
 			else if (simScene->buttonAPressed) {
@@ -879,12 +890,15 @@ protected:
 			}
 			if (inputState.Buttons & ovrButton_B) simScene->buttonBPressed = true;
 			else if (simScene->buttonBPressed) {
-				simScene->buttonB = (simScene->buttonB + 1) % 4; simScene->buttonBPressed = false;
+				simScene->buttonB = (simScene->buttonB + 1) % 2; simScene->buttonBPressed = false;
 			}
-			if (inputState.Buttons & ovrButton_X) simScene->buttonXPressed = true;
-			else if (simScene->buttonXPressed) {
-				simScene->buttonX = (simScene->buttonX + 1) % 4; simScene->buttonXPressed = false;
-			}
+
+			if (inputState.HandTrigger[ovrHand_Right] > 0.5f) simScene->rightHandTriggerPressed = true;
+			else simScene->rightHandTriggerPressed = false;
+
+			ovrPosef rightPose = trackState.HandPoses[ovrHand_Right].ThePose;
+			rightHandPose = ovr::toGlm(rightPose);
+			triggerPose = glm::vec3(rightPose.Position.x, rightPose.Position.y, rightPose.Position.z);
 
 			if (inputState.Buttons & ovrButton_RThumb) simScene->IOD = 0;
 			else {
@@ -901,7 +915,23 @@ protected:
 	}
 
 	void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) {
-		simScene->preRender(projection, glm::inverse(headPose), _fbo, vp, eyePos);
+		if (simScene->rightHandTriggerPressed) {
+			glm::mat4 no_rot = glm::mat4(1.0f);
+			if (getTrackingState() == 0) {
+				no_rot[3] = rightHandPose[3];
+				//no_rot = rightHandPose;
+				lastRightHand = rightHandPose;
+			}
+			else {
+				no_rot[3] = lastRightHand[3];
+			}
+			vec3 adjustedEyePose = glm::vec3(no_rot[3][0], no_rot[3][1], no_rot[3][2]);
+			adjustedEyePose.x += getDefaultIOD(simScene->curEyeIdx);
+			simScene->preRender(projection, glm::inverse(no_rot), _fbo, vp, adjustedEyePose);
+		}
+		else {
+			simScene->preRender(projection, glm::inverse(headPose), _fbo, vp, eyePos);
+		}
 	}
 
 	void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose) override {
