@@ -575,8 +575,8 @@ protected:
 		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, curTexId, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		ovr::for_each_eye([&](ovrEyeType eye) {
-			 renderEye[eye] = eyePoses[eye];
-			 /*
+			// renderEye[eye] = eyePoses[eye];
+			// /*
 			if (!initLastEye[eye]) {
 				lastEye[eye] = eyePoses[eye];
 				initLastEye[eye] = true;
@@ -586,7 +586,7 @@ protected:
 				renderEye[eye].Position = eyePoses[eye].Position;
 			}
 			lastEye[eye] = renderEye[eye];
-			 */
+			// */
 			
 			currentEye(eye);
 			const auto& vp = _sceneLayer.Viewport[eye];
@@ -594,7 +594,8 @@ protected:
 			_sceneLayer.RenderPose[eye] = eyePoses[eye];
 			glm::vec3 eyePos = glm::vec3(renderEye[eye].Position.x, renderEye[eye].Position.y, renderEye[eye].Position.z);
 			offscreenRender(_eyeProjections[eye], ovr::toGlm(renderEye[eye]), _fbo, vp, eyePos);
-			renderScene(_eyeProjections[eye], ovr::toGlm(eyePoses[eye]));
+			glm::vec3 origEyePos = glm::vec3(eyePoses[eye].Position.x, eyePoses[eye].Position.y, eyePoses[eye].Position.z);
+			renderScene(_eyeProjections[eye], ovr::toGlm(eyePoses[eye]), origEyePos);
 			
 			//*/
 			/*
@@ -623,7 +624,7 @@ protected:
 	float getDefaultIOD(int idx) { return defaultHmdToEyeOffset[idx]; }
 
 	virtual void offscreenRender(const glm::mat4 & projection, const glm::mat4 & headPose, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) = 0;
-	virtual void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose) = 0;
+	virtual void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose, const glm::vec3 & eyePos) = 0;
 	virtual void currentEye(ovrEyeType eye) = 0;
 	virtual int getViewState() = 0;
 	virtual int getTrackingState() = 0;
@@ -644,21 +645,42 @@ protected:
 #include "Cube.h"
 #include "Skybox.h"
 #include "Cave.h"
+#include "Line.h"
 struct SimScene {
 	Cave * cave;
 	Cube * cube;
 	Skybox * skybox;
-	GLint cubeShaderProgram, skyboxShaderProgram;
+	Skybox * riftskybox;
+	Line * linel1;
+	Line * linel2;
+	Line * linel3;
+	Line * linel4;
+	Line * linel5;
+	Line * linel6;
+	Line * linel7;
+	Line * liner1;
+	Line * liner2;
+	Line * liner3;
+	Line * liner4;
+	Line * liner5;
+	Line * liner6;
+	Line * liner7;
+	GLint cubeShaderProgram, skyboxShaderProgram, lineShaderProgram;
 
 	bool buttonAPressed = false, buttonBPressed = false, buttonXPressed = false, rightHandTriggerPressed = false;
-	int buttonA = 0, buttonB = 0;
-	float IOD = 0.0f, cubeSize = 0.03f;
+	int buttonA = 0, buttonB = 0, buttonX = 0;
+	float IOD = 0.0f, cubeSize = 0.03f, cubeX = 0.0f, cubeZ = -0.5f;
+	int random_num = rand() % 6;
+	bool randomGened = false;
 
 #define CUBE_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/shader.vert"
 #define CUBE_FRAGMENT_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/shader.frag"
 
 #define SKYBOX_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/skybox.vert"
 #define SKYBOX_FRAGMENT_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/skybox.frag"
+
+#define LINE_VERTEX_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/LineShader.vert"
+#define LINE_FRAGMENT_SHADER_PATH "C:/Users/degu/Desktop/CSE190Project3/Minimal/LineShader.frag"
 
 public:
 	static glm::mat4 P; // P for projection
@@ -669,8 +691,10 @@ public:
 	GLuint bFBO, brenderedTexture, bRBO;
 
 	SimScene() {
+		srand(time(0));
 		cubeShaderProgram = LoadShaders(CUBE_VERTEX_SHADER_PATH, CUBE_FRAGMENT_SHADER_PATH);
 		skyboxShaderProgram = LoadShaders(SKYBOX_VERTEX_SHADER_PATH, SKYBOX_FRAGMENT_SHADER_PATH);
+		lineShaderProgram = LoadShaders(LINE_VERTEX_SHADER_PATH, LINE_FRAGMENT_SHADER_PATH);
 
 		// left
 		glGenFramebuffers(1, &lFBO);
@@ -740,63 +764,116 @@ public:
 		cave->toWorld = glm::rotate(glm::mat4(1.0f), -0.785398f, glm::vec3(0.0f, 1.0f, 0.0f));
 		skybox = new Skybox();
 		skybox->toWorld = glm::mat4(1.0f);
+		riftskybox = new Skybox();
+		riftskybox->toWorld = glm::mat4(1.0f);
+		riftskybox->useCubemap(2);
 		cube = new Cube();
-		cube->toWorld = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
+		cube->toWorld = glm::translate(glm::mat4(1.0f), glm::vec3(cubeX, 0.0f, cubeZ)) * glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
+		linel1 = new Line();
+		linel2 = new Line();
+		linel3 = new Line();
+		linel4 = new Line();
+		linel5 = new Line();
+		linel6 = new Line();
+		linel7 = new Line();
+		liner1 = new Line();
+		liner2 = new Line();
+		liner3 = new Line();
+		liner4 = new Line();
+		liner5 = new Line();
+		liner6 = new Line();
+		liner7 = new Line();
 	}
 
 	void update() {
-		cube->toWorld = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
+		cube->toWorld = glm::translate(glm::mat4(1.0f), glm::vec3(cubeX, 0.0f, cubeZ)) * glm::scale(glm::mat4(1.0f), glm::vec3(cubeSize, cubeSize, cubeSize));
 	}
 
 	void preRender(const glm::mat4 & projection, const glm::mat4 & modelview, GLuint _fbo, const ovrRecti & vp, const glm::vec3 & eyePos) {
 		// render scene to texture
-		//left
+		//------------------------left
 		glBindFramebuffer(GL_FRAMEBUFFER, lFBO);
 		glViewport(0, 0, 2048, 2048);
-		glClearColor(1.f, 1.f, 1.f, 1.0f);
+		glClearColor(0.f, 0.f, 0.f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-		glUseProgram(skyboxShaderProgram);
+
+		float nearPlane = 0.01f, farPlane = 1000.0f;
+		//if (buttonX == 1 && curEyeIdx == 0) hasLeft = true;
+		//if (buttonX == 1 && curEyeIdx == 1) hasRight = true;
+		if (buttonX == 1 && !randomGened) {
+			random_num = rand() % 6;
+			randomGened = true;
+		}
+
 		vec3 pa = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, 2.0f, 1.0f));
 		vec3 pb = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, -2.0f, 1.0f));
 		vec3 pc = glm::vec3(cave->toWorld * vec4(-2.0f, 2.0f, 2.0f, 1.0f));
-		float nearPlane = 0.01f, farPlane = 1000.0f;
-		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
-		//skybox->draw(skyboxShaderProgram, projection, modelview);
-		glUseProgram(cubeShaderProgram);
-		cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
-		//cube->draw(cubeShaderProgram, projection, modelview);
-		
+		if (buttonX == 0 || curEyeIdx * 3 != random_num) {
+			glUseProgram(skyboxShaderProgram);
+			skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
+			glUseProgram(cubeShaderProgram);
+			cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
+		}
+		// line update
+		if (curEyeIdx == 0) {
+			linel1->update(pc, eyePos, false);
+			linel2->update(pa, eyePos, false);
+		}
+		else {
+			liner1->update(pc, eyePos, true);
+			liner2->update(pa, eyePos, true);
+		}
 
-		//right
+		//----------------------right
 		glBindFramebuffer(GL_FRAMEBUFFER, rFBO);
 		glViewport(0, 0, 2048, 2048);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-		glUseProgram(skyboxShaderProgram);
+
 		pa = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, -2.0f, 1.0f));
 		pb = glm::vec3(cave->toWorld * vec4(2.0f, -2.0f, -2.0f, 1.0f));
 		pc = glm::vec3(cave->toWorld * vec4(-2.0f, 2.0f, -2.0f, 1.0f));
-		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
-		
-		glUseProgram(cubeShaderProgram);
-		cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
-		
+		if (buttonX == 0 || curEyeIdx * 3 + 1 != random_num) {
+			glUseProgram(skyboxShaderProgram);
+			skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
+			glUseProgram(cubeShaderProgram);
+			cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
+		}
+		// line update
+		if (curEyeIdx == 0) {
+			// linel3->update(pc, eyePos, false);
+			linel3->update(pc, eyePos, false);
+			linel4->update(pa, eyePos, false);
+			linel5->update(pb + (pc - pa), eyePos, false);
+			linel6->update(pb, eyePos, false);
+		}
+		else {
+			liner3->update(pc, eyePos, true);
+			liner4->update(pa, eyePos, true);
+			liner5->update(pb + (pc - pa), eyePos, true);
+			liner6->update(pb, eyePos, true);
+		}
 
-		//bottom
+		//-------------------------bottom
 		glBindFramebuffer(GL_FRAMEBUFFER, bFBO);
 		glViewport(0, 0, 2048, 2048);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-		glUseProgram(skyboxShaderProgram);
+
 		pa = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, 2.0f, 1.0f));
 		pb = glm::vec3(cave->toWorld * vec4(2.0f, -2.0f, 2.0f, 1.0f));
 		pc = glm::vec3(cave->toWorld * vec4(-2.0f, -2.0f, -2.0f, 1.0f));
-		skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
-		
-		glUseProgram(cubeShaderProgram);
-		cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
-		
+		if (buttonX == 0 || curEyeIdx * 3 + 2 != random_num) {
+			glUseProgram(skyboxShaderProgram);
+			skybox->draw(skyboxShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
+			glUseProgram(cubeShaderProgram);
+			cube->draw(cubeShaderProgram, getProjection(eyePos, pa, pb, pc, nearPlane, farPlane), modelview);
+		}
+		// line update
+		if (curEyeIdx == 0) {
+			linel7->update(pb, eyePos, false);
+		}
+		else {
+			liner7->update(pb, eyePos, true);
+		}
 
 		// restore fbo
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -832,10 +909,33 @@ public:
 		return P*glm::transpose(M)*T;
 	}
 
-	void render(const mat4 & projection, const mat4 & modelview) {
+	void render(const mat4 & projection, const mat4 & modelview, const glm::vec3 & eyePos) {
 		// render texture to cave
+		glUseProgram(skyboxShaderProgram);
+		riftskybox->draw(skyboxShaderProgram, projection, modelview);
 		glUseProgram(cubeShaderProgram);
 		cave->draw(cubeShaderProgram, projection, modelview, lrenderedTexture, rrenderedTexture, brenderedTexture);
+		glUseProgram(lineShaderProgram);
+		/*
+		vec3 pc = glm::vec3(cave->toWorld * vec4(-2.0f, 2.0f, 2.0f, 1.0f));
+		if (curEyeIdx == 0) {
+			//linel1->update(pc, eyePos, false);
+		}
+		*/
+		linel1->draw(lineShaderProgram, projection, modelview);
+		linel2->draw(lineShaderProgram, projection, modelview);
+		linel3->draw(lineShaderProgram, projection, modelview);
+		linel4->draw(lineShaderProgram, projection, modelview);
+		linel5->draw(lineShaderProgram, projection, modelview);
+		linel6->draw(lineShaderProgram, projection, modelview);
+		linel7->draw(lineShaderProgram, projection, modelview);
+		liner1->draw(lineShaderProgram, projection, modelview);
+		liner2->draw(lineShaderProgram, projection, modelview);
+		liner3->draw(lineShaderProgram, projection, modelview);
+		liner4->draw(lineShaderProgram, projection, modelview);
+		liner5->draw(lineShaderProgram, projection, modelview);
+		liner6->draw(lineShaderProgram, projection, modelview);
+		liner7->draw(lineShaderProgram, projection, modelview);
 	}
 
 	void currentEye(int eyeIdx) {
@@ -892,6 +992,10 @@ protected:
 			else if (simScene->buttonBPressed) {
 				simScene->buttonB = (simScene->buttonB + 1) % 2; simScene->buttonBPressed = false;
 			}
+			if (inputState.Buttons & ovrButton_X) simScene->buttonXPressed = true;
+			else if (simScene->buttonXPressed) {
+				simScene->buttonX = (simScene->buttonX + 1) % 2; simScene->buttonXPressed = false, simScene->randomGened = false;
+			}
 
 			if (inputState.HandTrigger[ovrHand_Right] > 0.5f) simScene->rightHandTriggerPressed = true;
 			else simScene->rightHandTriggerPressed = false;
@@ -900,10 +1004,15 @@ protected:
 			rightHandPose = ovr::toGlm(rightPose);
 			triggerPose = glm::vec3(rightPose.Position.x, rightPose.Position.y, rightPose.Position.z);
 
-			if (inputState.Buttons & ovrButton_RThumb) simScene->IOD = 0;
+			if (inputState.Buttons & ovrButton_RThumb) {
+				simScene->cubeX = 0.0f;
+				simScene->cubeZ = -0.5f;
+			}
 			else {
-				if (inputState.Thumbstick[ovrHand_Right].x > 0.5f) simScene->IOD += 0.001f;
-				else if (inputState.Thumbstick[ovrHand_Right].x < -0.5f) simScene->IOD -= 0.001f;
+				if (inputState.Thumbstick[ovrHand_Right].x > 0.5f) simScene->cubeX += 0.001f;
+				else if (inputState.Thumbstick[ovrHand_Right].x < -0.5f) simScene->cubeX -= 0.001f;
+				if (inputState.Thumbstick[ovrHand_Right].y > 0.5f) simScene->cubeZ -= 0.001f;
+				else if (inputState.Thumbstick[ovrHand_Right].y < -0.5f) simScene->cubeZ += 0.001f;
 			}
 			if (inputState.Buttons & ovrButton_LThumb) simScene->cubeSize = 0.03f;
 			else {
@@ -934,8 +1043,8 @@ protected:
 		}
 	}
 
-	void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose) override {
-		simScene->render(projection, glm::inverse(headPose));
+	void renderScene(const glm::mat4 & projection, const glm::mat4 & headPose, const glm::vec3 & eyePos) override {
+		simScene->render(projection, glm::inverse(headPose), eyePos);
 	}
 
 	void currentEye(ovrEyeType eye) {

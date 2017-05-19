@@ -132,12 +132,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Cube.cpp" />
+    <ClCompile Include="Line.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="shader.cpp" />
     <ClCompile Include="Skybox.cpp" />
     <ClCompile Include="Cave.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="LineShader.frag" />
+    <None Include="LineShader.vert" />
     <None Include="packages.config" />
     <None Include="shader.frag" />
     <None Include="shader.vert" />
@@ -146,6 +149,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Cube.h" />
+    <ClInclude Include="Line.h" />
     <ClInclude Include="shader.h" />
     <ClInclude Include="Skybox.h" />
     <ClInclude Include="Cave.h" />
